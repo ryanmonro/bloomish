@@ -1,7 +1,7 @@
 'use strict';
 
 var model, reverb;
-var notes, radiusFactor, maxVelocity;
+var notes;
 
 function setup() {
   createCanvas(window.innerWidth - 20, window.innerHeight - 20);
@@ -11,10 +11,7 @@ function setup() {
   reverb = new p5.Reverb();
   reverb.set(1.7);
   reverb.connect(p5.soundOut);
-  notes = shuffle(['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'])
   var shortestSide = (height < width ? height : width)
-  radiusFactor = shortestSide / 40
-  maxVelocity = shortestSide / 80
   model = new Model();
 }
 
@@ -22,6 +19,7 @@ function draw() {
   background(30);
   model.populate()
   model.draw();
+  model.cleanUp();
 }
 
 function touchStarted() {
@@ -31,10 +29,6 @@ function touchStarted() {
   model.addBall(mX, mY);
 }
 
-function randomNote() {
-  return random(['C', 'D','F', 'G', 'A']) + random(["4","5","6"]);
-}
-
 var Model = function () {
   this.balls = [];
   this.minPopulation = 5;
@@ -42,13 +36,12 @@ var Model = function () {
   this.lastBallAddedTime = 0;
   this.ballAddInterval = 1000;
   this.frame = 0;
+  this.notes = ['C', 'D', 'E', 'F', 'G', 'A', 'Bb']
 }
 
 Model.prototype.addBall = function(x, y, dx, dy) {
-  // if(this.balls.length < this.maxPopulation){
-    this.balls.push(new Ball(x, y, this.balls));
-    this.lastBallAddedTime = Date.now();
-  // }
+  this.balls.push(new Ball(x, y, this.balls));
+  this.lastBallAddedTime = Date.now();
 }
 
 Model.prototype.populate = function() {
@@ -60,60 +53,69 @@ Model.prototype.populate = function() {
 }
 
 Model.prototype.draw = function(){
+  this.gradient()
   for(var ball of this.balls){
     ball.draw()
   }
+}
 
+Model.prototype.gradient = function(){
+  var gradientInterval = 10000
+  var gradientTime = Date.now() % gradientInterval
+  if(gradientTime > gradientInterval / 2){
+    gradientTime -= gradientInterval / 2
+    gradientTime = (gradientInterval / 2) - gradientTime
+  }
+  var gChange = 30 * gradientTime / (gradientInterval / 2)
+  var c1 = color(240 + gChange, 100, 100)
+  var c2 = color(300 + gChange, 100, 100)
+  for (var x = 0; x < width; x++){
+    var colour = lerpColor(c1, c2, x / width)
+    stroke(colour)
+    line(x, 0, x, height)
+  }
+}
+
+Model.prototype.cleanUp = function(){
   for(var i = this.balls.length - 1; i >= 0 ; i--){
     var ball = this.balls[i]
-    if (ball.dead === true) {
+    if (ball.level <= 0) {
       this.balls.splice(i, 1);
     }
   }
 }
 
-Model.prototype.move = function() {
-  var dead = [];
-  // calculate movements
-  for (var b = 0; b < this.balls.length; b++){
-    var ball = this.balls[b];
-    ball.move();
-    ball.play()
-    if (ball.lifeSpan <= 0) {
-      dead.push(b);
-    }
-  }
-  // bring out your dead
-  for(var i = dead.length - 1; i >= 0 ; i--){
-    this.balls.splice(dead[i], 1);
-    if (this.balls.length < this.minPopulation) {
-      this.lastBallAddedTime = Date.now();
-    }
-  }
-}
-
-var Ball = function (x, y, balls) {
+var Ball = function (x, y) {
   var xPos = x || random(width)
   var yPos = y || random(height)
-  this.birth = Date.now()
+  this.nextPlayTime = Date.now() + 5000
   this.level = 15
-  this.playTime = Date.now() % 5000
-  this.note = Math.floor(random(0, 11));
-  this.octave = Math.floor(random(0, 3));
+  this.setHue()
   this.radius = 1; 
-  this.position = this.findPosition(x, y);
-  this.velocity = createVector(random(0 - maxVelocity, maxVelocity), random(0 - maxVelocity, maxVelocity))
-  this.nextVelocity = createVector(this.velocity.x, this.velocity.y);
-  this.dead = false
+  this.setPosition(x, y);
   this.synth = new p5.MonoSynth();
   this.synth.connect(reverb)
-  this.needsPlay = false;
+  this.playing = false
+  this.play()
 }
 
-Ball.prototype.findPosition = function(x, y) {
+Ball.prototype.setHue = function(){
+  var colorInterval = 10000
+  var colorTime = Date.now() % 10000
+  if (colorTime < colorInterval / 2) {
+    // this.hue = random([10, 100, 180])
+    this.hue = lerp(10, 180, colorTime / (colorInterval / 2))
+  } else {
+    colorTime -= colorInterval / 2
+    this.hue = lerp(180, 10, colorTime / (colorInterval / 2))
+  }
+}
+
+Ball.prototype.setPosition = function(x, y) {
   var r = this.radius
   if (x != null && y != null) {
-    return createVector(constrain(x, r + 1, width - r - 1), constrain(y, r + 1, height - r - 1))
+    this.position =  createVector(constrain(x, r + 1, width - r - 1), constrain(y, r + 1, height - r - 1))
+    return
   }
   var xPos, yPos
   var collision = false
@@ -123,41 +125,45 @@ Ball.prototype.findPosition = function(x, y) {
   }
   while (collision === true);
 
-  return createVector(xPos, yPos)
+  this.position = createVector(xPos, yPos)
 }
 
 Ball.prototype.draw = function() {
-  var loopTime = Date.now() % 5000
-  var time = loopTime - this.playTime
-  if(loopTime > this.playTime && loopTime < this.playTime + 5000){
-    var hue = this.note * 360 / 12
-    var opacity = (5000 - time) * 15 / 5000
-    fill(hue, 100, 100, opacity)
+  var time = Date.now()
+  if(time > this.nextPlayTime){
+    this.play()
+  }
+  if (this.playing === true){
+    var elapsedTime = time - this.playStarted
+    var opacity = (3000 - elapsedTime) * this.level / 3000
+    fill(this.hue, 100, 100, opacity)
     noStroke()
     ellipse(this.position.x, this.position.y, this.radius, this.radius);
     this.radius += 1;
-  }
-  else {
-    this.level -= 1;
-    this.radius = 0
-  }
-  if(this.playsRemaining == 0){
-    this.dead = true;
+    if (elapsedTime >= 3000 ) {
+      this.level -= 1;
+      this.radius = 0
+      this.playing = false
+    }
   }
 }
 
 Ball.prototype.play = function() {
-  if(this.needsPlay == true){
+  if(this.playing == false){
+    this.nextPlayTime = Date.now() + 5000
+    this.playStarted = Date.now()
     this.synth.oscillator.pan(this.position.x / (width / 2) - 1)
-    var note = notes[this.note]
-    var octave = ['3', '4', '5', '6'][this.octave]
-    this.synth.play(note + octave, 0.1, 0.1, 0.1);
+    var octaveHeight = (height / 5)
+    var noteIndex = (Math.floor(((height - this.position.y) % octaveHeight) * 7 / octaveHeight))
+    var note = model.notes[noteIndex]
+    var octave = Math.floor((height - this.position.y) / octaveHeight) + 3
+    this.synth.play(note + octave, 0.1 * this.level / 15, 0.1, 0.1);
     if(this.lifeSpan > 0 ){
       this.note += 1;
     }
     if(this.note == 12){
       this.note = 0;
     }
-    this.needsPlay = false
+    this.playing = true
   }
 }
