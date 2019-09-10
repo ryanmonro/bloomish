@@ -26,9 +26,18 @@ function draw() {
 
 function touchStarted() {
   getAudioContext().resume();
-  var mX = constrain(mouseX, 0, width)
-  var mY = constrain(mouseY, 0, height)
-  model.addBall(mX, mY);
+  if (touches.length == 0) {
+    var mX = constrain(mouseX, 0, width)
+    var mY = constrain(mouseY, 0, height)
+    model.addBall(mX, mY)
+  } else {
+    // iterate through touches
+    for (var t = 0; t < touches.length; t++){
+      var mX = constrain(touches[t].x, 0, width)
+      var mY = constrain(touches[t].y, 0, height)
+      model.addBall(mX, mY)
+    }
+  }
 }
 
 var Model = function() {
@@ -54,7 +63,6 @@ Model.prototype.buildScale = function() {
       octave++
     }
   }
-  console.log(this.scale)
 }
 
 Model.prototype.addBall = function(x, y, dx, dy) {
@@ -171,7 +179,6 @@ Ball.prototype.play = function() {
     this.playStarted = Date.now()
     this.synth.oscillator.pan(this.position.x / (width / 2) - 1)
     var scaleIndex = Math.floor((height - this.position.y) * model.scale.length / height)
-    console.log(this.position, scaleIndex)
     this.synth.play(model.scale[scaleIndex], 0.1 * this.level / 15, 0.1, 0.1);
     this.playing = true
   }
