@@ -3,6 +3,8 @@
 var model, reverb;
 var notes;
 
+console.log(Tonal.Note.fromMidi(44))
+
 function setup() {
   createCanvas(window.innerWidth - 20, window.innerHeight - 20);
   frameRate(30);
@@ -29,14 +31,30 @@ function touchStarted() {
   model.addBall(mX, mY);
 }
 
-var Model = function () {
-  this.balls = [];
-  this.minPopulation = 5;
-  this.maxPopulation = 10;
-  this.lastBallAddedTime = 0;
-  this.ballAddInterval = 1000;
-  this.frame = 0;
-  this.notes = ['C', 'D', 'E', 'F', 'G', 'A', 'Bb']
+var Model = function() {
+  this.balls = []
+  this.minPopulation = 5
+  this.maxPopulation = 10
+  this.lastBallAddedTime = 0
+  this.ballAddInterval = 1000
+  this.frame = 0
+  this.buildScale()
+}
+
+Model.prototype.buildScale = function() {
+  this.scale = []
+  var notes = ['A', 'Bb', 'C', 'D', 'E', 'F', 'G']
+  var notesIndex = 6
+  var octave = 2
+  for (var index = 0; index <= 29; index++){
+    this.scale.push(notes[notesIndex] + octave.toString())
+    notesIndex++
+    if (notesIndex == notes.length) {
+      notesIndex = 0
+      octave++
+    }
+  }
+  console.log(this.scale)
 }
 
 Model.prototype.addBall = function(x, y, dx, dy) {
@@ -103,7 +121,6 @@ Ball.prototype.setHue = function(){
   var colorInterval = 10000
   var colorTime = Date.now() % 10000
   if (colorTime < colorInterval / 2) {
-    // this.hue = random([10, 100, 180])
     this.hue = lerp(10, 180, colorTime / (colorInterval / 2))
   } else {
     colorTime -= colorInterval / 2
@@ -139,7 +156,7 @@ Ball.prototype.draw = function() {
     fill(this.hue, 100, 100, opacity)
     noStroke()
     ellipse(this.position.x, this.position.y, this.radius, this.radius);
-    this.radius += 1;
+    this.radius += 2;
     if (elapsedTime >= 3000 ) {
       this.level -= 1;
       this.radius = 0
@@ -153,17 +170,9 @@ Ball.prototype.play = function() {
     this.nextPlayTime = Date.now() + 5000
     this.playStarted = Date.now()
     this.synth.oscillator.pan(this.position.x / (width / 2) - 1)
-    var octaveHeight = (height / 5)
-    var noteIndex = (Math.floor(((height - this.position.y) % octaveHeight) * 7 / octaveHeight))
-    var note = model.notes[noteIndex]
-    var octave = Math.floor((height - this.position.y) / octaveHeight) + 3
-    this.synth.play(note + octave, 0.1 * this.level / 15, 0.1, 0.1);
-    if(this.lifeSpan > 0 ){
-      this.note += 1;
-    }
-    if(this.note == 12){
-      this.note = 0;
-    }
+    var scaleIndex = Math.floor((height - this.position.y) * model.scale.length / height)
+    console.log(this.position, scaleIndex)
+    this.synth.play(model.scale[scaleIndex], 0.1 * this.level / 15, 0.1, 0.1);
     this.playing = true
   }
 }
