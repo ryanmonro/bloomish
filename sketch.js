@@ -3,8 +3,6 @@
 var model, reverb;
 var notes;
 
-console.log(Tonal.Note.fromMidi(44))
-
 function setup() {
   createCanvas(window.innerWidth - 20, window.innerHeight - 20);
   frameRate(30);
